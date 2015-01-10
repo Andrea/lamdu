@@ -388,33 +388,32 @@ make closedHoleGui pl holeInfo = do
       (mShownResult, resultsWidget) <-
         makeResultsWidget holeInfo shownResultsLists hasHiddenResults
       (searchTermEventMap, resultsEventMap) <- OpenEventMap.make holeInfo mShownResult
-      rawOpenHole <-
+      searchTermGui <-
         makeSearchTermGui holeInfo
         <&> ExpressionGui.egWidget %~
             Widget.weakerEvents searchTermEventMap
-        <&> ExpressionGui.addBelow 0.5
-            [(0.5, Widget.strongerEvents resultsEventMap resultsWidget)]
       -- We make our own type view here instead of
       -- ExpressionGui.stdWrap, because we want to synchronize the
       -- active BG width with the inferred type width
       typeView <-
-        ExpressionGui.makeTypeView (rawOpenHole ^. guiWidth)
+        ExpressionGui.makeTypeView (resultsWidget ^. Widget.wSize . _1)
         (pl ^. Sugar.plEntityId) (pl ^. Sugar.plInferredType)
-      rawOpenHole
-        & guiWidth %~ max (typeView ^. Widget.wSize . _1)
-        & ExpressionGui.egWidget %~
+      hoverResults <-
+        resultsWidget
+        & Widget.wSize . _1 %~ max (typeView ^. Widget.wSize . _1)
+        & Widget.strongerEvents resultsEventMap .
           addBackground (hidOpen (hiIds holeInfo))
           (Config.layers config) holeOpenBGColor
+        & ExpressionGui.fromValueWidget
         & ExpressionGui.addBelowInferredSpacing typeView
         >>= addDarkBackground (hidOpen (hiIds holeInfo))
-        & ExpressionGui.wrapExprEventMap pl
-        >>= maybeHoverClosedHoleAbove holeInfo closedHoleGui
+      searchTermGui
+        & ExpressionGui.addBelow 0 [(0, hoverResults ^. ExpressionGui.egWidget)]
+        & maybeHoverClosedHoleAbove holeInfo closedHoleGui
+  & ExpressionGui.wrapExprEventMap pl
   where
     isHoleResult =
       Lens.nullOf (Sugar.plData . ExprGuiM.plStoredEntityIds . Lens.traversed) pl
-
-guiWidth :: Lens' (ExpressionGui m) Widget.R
-guiWidth = ExpressionGui.egWidget . Widget.wSize . _1
 
 addDarkBackground :: MonadA m => Widget.Id -> ExpressionGui f -> ExprGuiM m (ExpressionGui f)
 addDarkBackground myId widget =
